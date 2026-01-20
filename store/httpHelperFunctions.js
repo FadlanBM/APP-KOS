@@ -1,27 +1,73 @@
 /* eslint-disable no-undef */
-import axios from 'axios';
-import { Platform } from 'react-native';
-import Toast from 'react-native-toast-message';
+import axios from "axios";
+import { Platform, Alert } from "react-native";
+import { BASE_URL } from "@env";
+import { useAuthStore } from "./authStore";
 
-import useAuthStore from './useAuthStore';
-import useConfigStore from './useConfigStore';
-import useErrorStore, { ERROR_TYPES, ERROR_SEVERITY } from './useErrorStore';
-import { appConfig, errorStoreConfig } from '../src/constant/config';
+// Simple Toast wrapper menggunakan Alert agar tidak perlu dependency eksternal
+const Toast = {
+  show: ({ text1, text2 }) => {
+    Alert.alert(text1 || "Info", text2 || "");
+  },
+};
+
+// Stub config store yang mengambil base URL dari .env
+const useConfigStore = {
+  getState: () => ({
+    config: { url_api: BASE_URL },
+    debug: false,
+  }),
+};
+
+// Konstanta error minimal
+export const ERROR_TYPES = {
+  NETWORK: "network",
+  RUNTIME: "runtime",
+};
+
+export const ERROR_SEVERITY = {
+  HIGH: "high",
+  MEDIUM: "medium",
+  LOW: "low",
+};
+
+// Stub error store agar fungsi-fungsi tetap dapat dipanggil tanpa implementasi penuh
+const useErrorStore = {
+  getState: () => ({
+    isDebugMode: false,
+    addError: () => {},
+    addApiError: () => {},
+    addNetworkError: () => {},
+    addAuthError: () => {},
+    addPermissionError: () => {},
+    setError: () => {},
+  }),
+};
+
+// Konfigurasi aplikasi minimal, base URL dari .env
+export const appConfig = {
+  url_api: BASE_URL,
+  version: "1.0.0",
+};
+
+export const errorStoreConfig = {
+  isDebugMode: false,
+};
 
 // Fungsi membuat API client dengan error handling terintegrasi
-const createApiClient = ({ base_api }) => {
+const createApiClient = () => {
   const configStore = useConfigStore.getState();
   const authStore = useAuthStore.getState();
   const errorStore = useErrorStore.getState();
   const config = configStore.config;
-  const userToken = authStore.userToken;
+  const userToken = authStore.token;
 
   const instance = axios.create({
-    baseURL: base_api ?? config?.url_api ?? appConfig.url_api,
+    baseURL: BASE_URL || config?.url_api || appConfig.url_api,
     timeout: 30000, // Increased timeout
     headers: {
-      Accept: 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
+      Accept: "application/json",
+      "X-Requested-With": "XMLHttpRequest",
       // ...(config?.token && { token: config.token }),
     },
   });
@@ -32,14 +78,14 @@ const createApiClient = ({ base_api }) => {
       // Set proper content type based on data type
       if (config.data instanceof FormData) {
         // Don't set Content-Type for FormData, let browser set it with boundary
-        delete config.headers['Content-Type'];
+        delete config.headers["Content-Type"];
       } else if (
-        typeof URLSearchParams !== 'undefined' &&
+        typeof URLSearchParams !== "undefined" &&
         config.data instanceof URLSearchParams
       ) {
-        config.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-      } else if (config.data && typeof config.data === 'object') {
-        config.headers['Content-Type'] = 'application/json';
+        config.headers["Content-Type"] = "application/x-www-form-urlencoded";
+      } else if (config.data && typeof config.data === "object") {
+        config.headers["Content-Type"] = "application/json";
       }
 
       // Set authorization header
@@ -47,25 +93,25 @@ const createApiClient = ({ base_api }) => {
         config.headers.Authorization ||
         (userToken ? `Bearer ${userToken}` : null);
       if (token) {
-        config.headers['Authorization'] = token.startsWith('Bearer ')
+        config.headers["Authorization"] = token.startsWith("Bearer ")
           ? token
           : `Bearer ${token}`;
       }
 
       // Add platform info
-      config.headers['X-Platform'] = Platform.OS;
-      config.headers['X-App-Version'] = appConfig.version || '1.0.0';
+      config.headers["X-Platform"] = Platform.OS;
+      config.headers["X-App-Version"] = appConfig.version || "1.0.0";
 
       // Debug log if enabled
       if (errorStore.isDebugMode) {
         console.group(
-          `🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`
+          `🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`,
         );
-        console.log('URL:', config.baseURL + config.url);
-        console.log('Method:', config.method?.toUpperCase());
-        console.log('Headers:', config.headers);
-        console.log('Params:', config.params);
-        console.log('Data:', config.data);
+        console.log("URL:", config.baseURL + config.url);
+        console.log("Method:", config.method?.toUpperCase());
+        console.log("Headers:", config.headers);
+        console.log("Params:", config.params);
+        console.log("Data:", config.data);
         console.groupEnd();
       }
 
@@ -74,11 +120,11 @@ const createApiClient = ({ base_api }) => {
     (error) => {
       // Add request error to store
       errorStore.addError(error, ERROR_TYPES.NETWORK, ERROR_SEVERITY.HIGH, {
-        phase: 'request_interceptor',
+        phase: "request_interceptor",
         timestamp: Date.now(),
       });
       return Promise.reject(error);
-    }
+    },
   );
 
   // Enhanced response interceptor
@@ -87,11 +133,11 @@ const createApiClient = ({ base_api }) => {
       // Debug log successful response
       if (errorStore.isDebugMode) {
         console.group(
-          `✅ API Response: ${response.status} ${response.config.url}`
+          `✅ API Response: ${response.status} ${response.config.url}`,
         );
-        console.log('Status:', response.status);
-        console.log('Headers:', response.headers);
-        console.log('Data:', response.data);
+        console.log("Status:", response.status);
+        console.log("Headers:", response.headers);
+        console.log("Data:", response.data);
         console.groupEnd();
       }
       return response;
@@ -103,8 +149,8 @@ const createApiClient = ({ base_api }) => {
       if (response) {
         // Server responded with error status
         const errorContext = {
-          endpoint: config?.url || '',
-          method: config?.method?.toUpperCase() || '',
+          endpoint: config?.url || "",
+          method: config?.method?.toUpperCase() || "",
           statusCode: response.status,
           requestData: config?.data,
           requestParams: config?.params,
@@ -123,18 +169,18 @@ const createApiClient = ({ base_api }) => {
             {
               ...errorContext,
               severity: ERROR_SEVERITY.HIGH,
-              errorType: 'server_error',
-            }
+              errorType: "server_error",
+            },
           );
         } else if (response.status === 401) {
           errorStore.addAuthError(error, {
             ...errorContext,
-            reason: 'unauthorized',
+            reason: "unauthorized",
           });
         } else if (response.status === 403) {
           errorStore.addPermissionError(error, config?.method, config?.url, {
             ...errorContext,
-            reason: 'forbidden',
+            reason: "forbidden",
           });
         } else if (response.status >= 400) {
           errorStore.addApiError(
@@ -145,37 +191,37 @@ const createApiClient = ({ base_api }) => {
             {
               ...errorContext,
               severity: ERROR_SEVERITY.MEDIUM,
-              errorType: 'client_error',
-            }
+              errorType: "client_error",
+            },
           );
         }
       } else if (request) {
         // Network error (no response received)
         errorStore.addNetworkError(error, {
-          endpoint: config?.url || '',
-          method: config?.method?.toUpperCase() || '',
+          endpoint: config?.url || "",
+          method: config?.method?.toUpperCase() || "",
           timeout: config?.timeout,
           timestamp: Date.now(),
-          errorType: 'no_response',
+          errorType: "no_response",
         });
       } else {
         // Request setup error
         errorStore.addError(error, ERROR_TYPES.RUNTIME, ERROR_SEVERITY.MEDIUM, {
-          phase: 'request_setup',
+          phase: "request_setup",
           config: config,
           timestamp: Date.now(),
         });
       }
 
       return Promise.reject(error);
-    }
+    },
   );
 
   return instance;
 };
 
 // Enhanced error handling dengan useErrorStore integration
-const handleError = (error, showModalError = true, errorMode = 'toast') => {
+const handleError = (error, showModalError = true, errorMode = "toast") => {
   const { logout } = useAuthStore.getState();
   const { setError, addApiError, addNetworkError, addAuthError } =
     useErrorStore.getState();
@@ -183,7 +229,7 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
   let errorInfo = {
     status: null,
     data: null,
-    message: 'Terjadi kesalahan yang tidak diketahui',
+    message: "Terjadi kesalahan yang tidak diketahui",
     originalError: error?.response || error,
     isNetworkError: false,
     isAuthError: false,
@@ -211,8 +257,8 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
 
       // Add to error store based on status
       const errorContext = {
-        endpoint: config?.url || '',
-        method: config?.method?.toUpperCase() || '',
+        endpoint: config?.url || "",
+        method: config?.method?.toUpperCase() || "",
         requestData: config?.data,
         requestParams: config?.params,
         userAgent: Platform.OS,
@@ -222,7 +268,7 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
       if (response.status === 401) {
         addAuthError(error, {
           ...errorContext,
-          reason: 'token_expired_or_invalid',
+          reason: "token_expired_or_invalid",
         });
       } else if (response.status >= 500) {
         addApiError(
@@ -230,7 +276,7 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
           config?.url,
           config?.method,
           response.status,
-          errorContext
+          errorContext,
         );
       }
     } else if (request) {
@@ -238,14 +284,14 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
       errorInfo = {
         ...errorInfo,
         message:
-          'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+          "Tidak dapat terhubung ke server. Periksa koneksi internet Anda.",
         isNetworkError: true,
       };
 
       addNetworkError(error, {
-        endpoint: config?.url || '',
-        method: config?.method?.toUpperCase() || '',
-        reason: 'no_response',
+        endpoint: config?.url || "",
+        method: config?.method?.toUpperCase() || "",
+        reason: "no_response",
         timestamp: Date.now(),
       });
     }
@@ -259,10 +305,10 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
       // Handle unauthorized - but don't show duplicate toast for auth errors
       if (!errorInfo.isAuthError) {
         Toast.show({
-          type: 'error',
-          text1: 'Sesi Berakhir',
-          text2: 'Silakan login kembali untuk melanjutkan',
-          position: 'bottom',
+          type: "error",
+          text1: "Sesi Berakhir",
+          text2: "Silakan login kembali untuk melanjutkan",
+          position: "bottom",
           visibilityTime: 4000,
         });
       }
@@ -270,52 +316,52 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
       setTimeout(() => logout(), 1000);
     } else if (errorInfo.status === 403) {
       Toast.show({
-        type: 'error',
-        text1: 'Akses Ditolak',
-        text2: 'Anda tidak memiliki izin untuk melakukan aksi ini',
-        position: 'bottom',
+        type: "error",
+        text1: "Akses Ditolak",
+        text2: "Anda tidak memiliki izin untuk melakukan aksi ini",
+        position: "bottom",
         visibilityTime: 4000,
       });
     } else if (errorInfo.isNetworkError) {
       Toast.show({
-        type: 'error',
-        text1: 'Koneksi Bermasalah',
+        type: "error",
+        text1: "Koneksi Bermasalah",
         text2: errorInfo.message,
-        position: 'bottom',
+        position: "bottom",
         visibilityTime: 5000,
       });
     } else if (errorInfo.isServerError) {
       Toast.show({
-        type: 'error',
-        text1: 'Server Bermasalah',
-        text2: 'Mohon coba lagi dalam beberapa saat',
-        position: 'bottom',
+        type: "error",
+        text1: "Server Bermasalah",
+        text2: "Mohon coba lagi dalam beberapa saat",
+        position: "bottom",
         visibilityTime: 4000,
       });
     } else {
       // Handle other errors based on mode
       switch (errorMode) {
-        case 'toast':
+        case "toast":
           Toast.show({
-            type: 'error',
-            text1: 'Terjadi Kesalahan',
+            type: "error",
+            text1: "Terjadi Kesalahan",
             text2: errorInfo.message,
-            position: 'bottom',
+            position: "bottom",
             visibilityTime: 4000,
           });
           break;
-        case 'modal':
+        case "modal":
           setError({ isError: true, message: errorInfo.message });
           break;
-        case 'silent':
+        case "silent":
           // Don't show any UI feedback
           break;
         default:
           Toast.show({
-            type: 'error',
-            text1: 'Terjadi Kesalahan',
+            type: "error",
+            text1: "Terjadi Kesalahan",
             text2: errorInfo.message,
-            position: 'bottom',
+            position: "bottom",
             visibilityTime: 4000,
           });
           break;
@@ -325,18 +371,18 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
 
   // Enhanced status messages
   const statusMessages = {
-    400: 'Permintaan tidak valid',
-    401: 'Akses ditolak - silakan login kembali',
-    403: 'Anda tidak memiliki izin untuk aksi ini',
-    404: 'Data yang diminta tidak ditemukan',
-    408: 'Permintaan timeout - coba lagi',
-    409: 'Konflik data - data mungkin sudah berubah',
-    422: 'Data yang dikirim tidak valid',
-    429: 'Terlalu banyak permintaan - coba lagi nanti',
-    500: 'Kesalahan server internal',
-    502: 'Server gateway bermasalah',
-    503: 'Layanan tidak tersedia sementara',
-    504: 'Gateway timeout',
+    400: "Permintaan tidak valid",
+    401: "Akses ditolak - silakan login kembali",
+    403: "Anda tidak memiliki izin untuk aksi ini",
+    404: "Data yang diminta tidak ditemukan",
+    408: "Permintaan timeout - coba lagi",
+    409: "Konflik data - data mungkin sudah berubah",
+    422: "Data yang dikirim tidak valid",
+    429: "Terlalu banyak permintaan - coba lagi nanti",
+    500: "Kesalahan server internal",
+    502: "Server gateway bermasalah",
+    503: "Layanan tidak tersedia sementara",
+    504: "Gateway timeout",
   };
 
   return {
@@ -349,14 +395,14 @@ const handleError = (error, showModalError = true, errorMode = 'toast') => {
 };
 // Enhanced helper functions
 const normalizeFileUri = (uri) => {
-  if (!uri) return '';
-  return Platform.OS === 'android' ? uri : uri.replace('file://', '');
+  if (!uri) return "";
+  return Platform.OS === "android" ? uri : uri.replace("file://", "");
 };
 
 // Enhanced createFormData with better validation
 const createFormData = (items) => {
   if (!Array.isArray(items)) {
-    console.warn('createFormData: items should be an array');
+    console.warn("createFormData: items should be an array");
     return new FormData();
   }
 
@@ -374,19 +420,19 @@ const createFormData = (items) => {
         const fileData = {
           uri: normalizeFileUri(value.uri),
           name: value.fileName || value.name || `file_${Date.now()}_${index}`,
-          type: value.mimeType || value.type || 'application/octet-stream',
+          type: value.mimeType || value.type || "application/octet-stream",
         };
         formData.append(key, fileData);
       } else if (value === null || value === undefined) {
         // Handle null/undefined values
-        formData.append(key, '');
-      } else if (typeof value === 'object') {
+        formData.append(key, "");
+      } else if (typeof value === "object") {
         // Handle objects - stringify them
         formData.append(key, JSON.stringify(value));
       } else if (Array.isArray(value)) {
         // Handle arrays - either stringify or append each item
         value.forEach((item, i) => {
-          if (typeof item === 'object') {
+          if (typeof item === "object") {
             formData.append(`${key}[${i}]`, JSON.stringify(item));
           } else {
             formData.append(`${key}[${i}]`, String(item));
@@ -401,7 +447,7 @@ const createFormData = (items) => {
       // Add error to store but don't break the process
       const { addError } = useErrorStore.getState();
       addError(error, ERROR_TYPES.RUNTIME, ERROR_SEVERITY.LOW, {
-        context: 'createFormData',
+        context: "createFormData",
         key,
         value: typeof value,
       });
@@ -413,11 +459,11 @@ const createFormData = (items) => {
 
 // Enhanced debug handler with better formatting
 const handleDebug = (
-  context = '',
+  context = "",
   data = {},
   isDebug = false,
-  url = '',
-  level = 'log'
+  url = "",
+  level = "log",
 ) => {
   if (!isDebug) return;
 
@@ -433,11 +479,11 @@ const handleDebug = (
   // Enhanced data logging
   for (const [key, value] of Object.entries(data)) {
     try {
-      if (level === 'error' && key === 'error') {
+      if (level === "error" && key === "error") {
         console.error(`${key}:`, value);
-      } else if (key === 'headers' && typeof value === 'object') {
+      } else if (key === "headers" && typeof value === "object") {
         console.log(`${key}:`, JSON.stringify(value, null, 2));
-      } else if (typeof value === 'object' && value !== null) {
+      } else if (typeof value === "object" && value !== null) {
         console.log(`${key}:`, value);
       } else {
         console[level](`${key}:`, value);
@@ -459,29 +505,29 @@ const _normalizeRequestParams = ({
   params = {},
   headers = {},
   token = null,
-  bodyType = 'json',
+  bodyType = "json",
   debug = false,
   showToast = true,
   handleErrorStatus = true,
-  modeShowError = 'toast',
+  modeShowError = "toast",
   ...extraOptions
 }) => {
   // Validate required parameters
-  if (!url || typeof url !== 'string') {
-    throw new Error('URL is required and must be a string');
+  if (!url || typeof url !== "string") {
+    throw new Error("URL is required and must be a string");
   }
 
   // Normalize headers
   const normalizedHeaders = {
     ...headers,
     ...(token && {
-      Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+      Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
     }),
   };
 
   // Normalize body based on bodyType
   let normalizedBody = body;
-  if (bodyType === 'form-data' && body) {
+  if (bodyType === "form-data" && body) {
     normalizedBody = Array.isArray(body) ? createFormData(body) : body;
   }
 
@@ -494,9 +540,9 @@ const _normalizeRequestParams = ({
     debug: Boolean(debug),
     showToast: Boolean(showToast),
     handleErrorStatus: Boolean(handleErrorStatus),
-    modeShowError: ['toast', 'modal', 'silent'].includes(modeShowError)
+    modeShowError: ["toast", "modal", "silent"].includes(modeShowError)
       ? modeShowError
-      : 'toast',
+      : "toast",
     ...extraOptions,
   };
 };
@@ -511,39 +557,38 @@ export const createHttpHelperFunctions = () => {
 
   const POST = async ({
     url,
-    baseUrl = '', // Menambahkan parameter baseUrl untuk memungkinkan URL penuh
     body = null,
     params = {},
     headers = {},
-    bodyType = 'json',
+    bodyType = "json",
     debug = defaultDebugMode,
     showToast = true,
     handleErrorStatus = true,
-    modeShowError = 'toast',
+    modeShowError = "toast",
     onUploadProgress = null,
     timeout = null,
     token = null,
   }) => {
     try {
-      const api = createApiClient({ base_api: baseUrl });
+      const api = createApiClient();
 
       // Enhanced debug logging
       if (debug) {
         handleDebug(
-          'POST Request',
+          "POST Request",
           {
             url,
             params,
             headers,
             bodyType,
             bodySize: body
-              ? typeof body === 'string'
+              ? typeof body === "string"
                 ? body.length
-                : 'FormData/Object'
+                : "FormData/Object"
               : 0,
           },
           debug,
-          url
+          url,
         );
       }
 
@@ -551,18 +596,18 @@ export const createHttpHelperFunctions = () => {
       let requestData = body;
       let requestHeaders = { ...headers };
 
-      if (bodyType === 'form-data' && body) {
+      if (bodyType === "form-data" && body) {
         requestData = Array.isArray(body) ? createFormData(body) : body;
         // Don't set Content-Type for FormData, let browser handle it
-        delete requestHeaders['Content-Type'];
+        delete requestHeaders["Content-Type"];
       }
 
-      const response = await api.post(url ? url : '', requestData, {
+      const response = await api.post(url ? url : "", requestData, {
         params,
         headers: {
           ...requestHeaders,
           ...(token && {
-            Authorization: token.startsWith('Bearer ')
+            Authorization: token.startsWith("Bearer ")
               ? token
               : `Bearer ${token}`,
           }),
@@ -574,24 +619,24 @@ export const createHttpHelperFunctions = () => {
       // Debug response
       if (debug) {
         handleDebug(
-          'POST Response',
+          "POST Response",
           {
             status: response.status,
             statusText: response.statusText,
             dataSize: response.data ? JSON.stringify(response.data).length : 0,
           },
           debug,
-          url
+          url,
         );
       }
 
       // Show success toast if enabled
       if (showToast && response.status === 200 && response.data?.message) {
         Toast.show({
-          type: 'success',
-          text1: 'Berhasil',
+          type: "success",
+          text1: "Berhasil",
           text2: response.data.message,
-          position: 'bottom',
+          position: "bottom",
           visibilityTime: 3000,
         });
       }
@@ -605,11 +650,11 @@ export const createHttpHelperFunctions = () => {
     } catch (error) {
       if (debug) {
         handleDebug(
-          'POST Error',
+          "POST Error",
           { error: error.message },
           debug,
           url,
-          'error'
+          "error",
         );
       }
       throw handleError(error, handleErrorStatus, modeShowError);
@@ -624,7 +669,7 @@ export const createHttpHelperFunctions = () => {
     debug = defaultDebugMode,
     token = null,
     handleErrorStatus = true,
-    modeShowError = 'toast',
+    modeShowError = "toast",
     timeout = null,
     cacheBuster = false,
   }) => {
@@ -636,7 +681,7 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'GET Request',
+          "GET Request",
           {
             url,
             params: finalParams,
@@ -644,7 +689,7 @@ export const createHttpHelperFunctions = () => {
             cacheBuster,
           },
           debug,
-          url
+          url,
         );
       }
 
@@ -653,7 +698,7 @@ export const createHttpHelperFunctions = () => {
         headers: {
           ...headers,
           ...(token && {
-            Authorization: token.startsWith('Bearer ')
+            Authorization: token.startsWith("Bearer ")
               ? token
               : `Bearer ${token}`,
           }),
@@ -663,14 +708,14 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'GET Response',
+          "GET Response",
           {
             status: response.status,
             statusText: response.statusText,
             dataSize: response.data ? JSON.stringify(response.data).length : 0,
           },
           debug,
-          url
+          url,
         );
       }
 
@@ -681,11 +726,11 @@ export const createHttpHelperFunctions = () => {
         response.data?.message
       ) {
         Toast.show({
-          type: 'success',
-          text1: 'Data berhasil dimuat',
+          type: "success",
+          text1: "Data berhasil dimuat",
           text2: response.data.message,
           visibilityTime: 2000,
-          position: 'bottom',
+          position: "bottom",
         });
       }
 
@@ -697,7 +742,7 @@ export const createHttpHelperFunctions = () => {
       };
     } catch (error) {
       if (debug) {
-        handleDebug('GET Error', { error: error.message }, debug, url, 'error');
+        handleDebug("GET Error", { error: error.message }, debug, url, "error");
       }
       throw handleError(error, handleErrorStatus, modeShowError);
     }
@@ -710,7 +755,7 @@ export const createHttpHelperFunctions = () => {
     headers = {},
     debug = defaultDebugMode,
     showToast = true,
-    modeShowError = 'toast',
+    modeShowError = "toast",
     handleErrorStatus = true,
     token = null,
     timeout = null,
@@ -720,7 +765,7 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'DELETE Request',
+          "DELETE Request",
           {
             url,
             params,
@@ -728,7 +773,7 @@ export const createHttpHelperFunctions = () => {
             hasBody: !!body,
           },
           debug,
-          url
+          url,
         );
       }
 
@@ -738,7 +783,7 @@ export const createHttpHelperFunctions = () => {
         headers: {
           ...headers,
           ...(token && {
-            Authorization: token.startsWith('Bearer ')
+            Authorization: token.startsWith("Bearer ")
               ? token
               : `Bearer ${token}`,
           }),
@@ -748,23 +793,23 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'DELETE Response',
+          "DELETE Response",
           {
             status: response.status,
             statusText: response.statusText,
           },
           debug,
-          url
+          url,
         );
       }
 
       if (showToast && response.data?.message) {
         Toast.show({
-          type: 'success',
-          text1: 'Berhasil Dihapus',
+          type: "success",
+          text1: "Berhasil Dihapus",
           text2: response.data.message,
           visibilityTime: 2000,
-          position: 'bottom',
+          position: "bottom",
         });
       }
 
@@ -777,11 +822,11 @@ export const createHttpHelperFunctions = () => {
     } catch (error) {
       if (debug) {
         handleDebug(
-          'DELETE Error',
+          "DELETE Error",
           { error: error.message },
           debug,
           url,
-          'error'
+          "error",
         );
       }
       throw handleError(error, handleErrorStatus, modeShowError);
@@ -795,8 +840,8 @@ export const createHttpHelperFunctions = () => {
     headers = {},
     debug = defaultDebugMode,
     showToast = true,
-    bodyType = 'json',
-    modeShowError = 'toast',
+    bodyType = "json",
+    modeShowError = "toast",
     handleErrorStatus = true,
     token = null,
     timeout = null,
@@ -807,7 +852,7 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'PUT Request',
+          "PUT Request",
           {
             url,
             params,
@@ -816,7 +861,7 @@ export const createHttpHelperFunctions = () => {
             hasBody: !!body,
           },
           debug,
-          url
+          url,
         );
       }
 
@@ -824,9 +869,9 @@ export const createHttpHelperFunctions = () => {
       let requestData = body;
       let requestHeaders = { ...headers };
 
-      if (bodyType === 'form-data' && body) {
+      if (bodyType === "form-data" && body) {
         requestData = Array.isArray(body) ? createFormData(body) : body;
-        delete requestHeaders['Content-Type'];
+        delete requestHeaders["Content-Type"];
       }
 
       const response = await api.put(url, requestData, {
@@ -834,7 +879,7 @@ export const createHttpHelperFunctions = () => {
         headers: {
           ...requestHeaders,
           ...(token && {
-            Authorization: token.startsWith('Bearer ')
+            Authorization: token.startsWith("Bearer ")
               ? token
               : `Bearer ${token}`,
           }),
@@ -845,23 +890,23 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'PUT Response',
+          "PUT Response",
           {
             status: response.status,
             statusText: response.statusText,
           },
           debug,
-          url
+          url,
         );
       }
 
       if (showToast && response.data?.message) {
         Toast.show({
-          type: 'success',
-          text1: 'Berhasil Diperbarui',
+          type: "success",
+          text1: "Berhasil Diperbarui",
           text2: response.data.message,
           visibilityTime: 2000,
-          position: 'bottom',
+          position: "bottom",
         });
       }
 
@@ -873,7 +918,7 @@ export const createHttpHelperFunctions = () => {
       };
     } catch (error) {
       if (debug) {
-        handleDebug('PUT Error', { error: error.message }, debug, url, 'error');
+        handleDebug("PUT Error", { error: error.message }, debug, url, "error");
       }
       throw handleError(error, handleErrorStatus, modeShowError);
     }
@@ -887,8 +932,8 @@ export const createHttpHelperFunctions = () => {
     headers = {},
     debug = defaultDebugMode,
     showToast = true,
-    bodyType = 'json',
-    modeShowError = 'toast',
+    bodyType = "json",
+    modeShowError = "toast",
     handleErrorStatus = true,
     token = null,
     timeout = null,
@@ -898,7 +943,7 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'PATCH Request',
+          "PATCH Request",
           {
             url,
             params,
@@ -907,7 +952,7 @@ export const createHttpHelperFunctions = () => {
             hasBody: !!body,
           },
           debug,
-          url
+          url,
         );
       }
 
@@ -915,9 +960,9 @@ export const createHttpHelperFunctions = () => {
       let requestData = body;
       let requestHeaders = { ...headers };
 
-      if (bodyType === 'form-data' && body) {
+      if (bodyType === "form-data" && body) {
         requestData = Array.isArray(body) ? createFormData(body) : body;
-        delete requestHeaders['Content-Type'];
+        delete requestHeaders["Content-Type"];
       }
 
       const response = await api.patch(url, requestData, {
@@ -925,7 +970,7 @@ export const createHttpHelperFunctions = () => {
         headers: {
           ...requestHeaders,
           ...(token && {
-            Authorization: token.startsWith('Bearer ')
+            Authorization: token.startsWith("Bearer ")
               ? token
               : `Bearer ${token}`,
           }),
@@ -935,23 +980,23 @@ export const createHttpHelperFunctions = () => {
 
       if (debug) {
         handleDebug(
-          'PATCH Response',
+          "PATCH Response",
           {
             status: response.status,
             statusText: response.statusText,
           },
           debug,
-          url
+          url,
         );
       }
 
       if (showToast && response.data?.message) {
         Toast.show({
-          type: 'success',
-          text1: 'Berhasil Diperbarui',
+          type: "success",
+          text1: "Berhasil Diperbarui",
           text2: response.data.message,
           visibilityTime: 2000,
-          position: 'bottom',
+          position: "bottom",
         });
       }
 
@@ -964,11 +1009,11 @@ export const createHttpHelperFunctions = () => {
     } catch (error) {
       if (debug) {
         handleDebug(
-          'PATCH Error',
+          "PATCH Error",
           { error: error.message },
           debug,
           url,
-          'error'
+          "error",
         );
       }
       throw handleError(error, handleErrorStatus, modeShowError);
@@ -977,3 +1022,10 @@ export const createHttpHelperFunctions = () => {
 
   return { POST, GET, DELETE, PUT, PATCH };
 };
+
+const httpHelper = createHttpHelperFunctions();
+export const POST = httpHelper.POST;
+export const GET = httpHelper.GET;
+export const DELETE = httpHelper.DELETE;
+export const PUT = httpHelper.PUT;
+export const PATCH = httpHelper.PATCH;

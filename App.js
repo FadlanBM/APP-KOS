@@ -16,7 +16,28 @@ import { useAuthStore } from "./store/authStore";
 import WelcomeScreen from "./screens/auth/WelcomeScreen";
 import SignUpScreen from "./screens/auth/SignUpScreen";
 import CompleteProfileScreen from "./screens/auth/CompleteProfileScreen";
-import api from "./utils/api";
+import SplashScreen from "./components/SplashScreen";
+import DetailKosScreen from "./screens/kos/DetailKosScreen";
+import AjukanSewaScreen from "./screens/kos/AjukanSewaScreen";
+import PaymentScreen from "./screens/kos/PaymentScreen";
+import TransactionDetailScreen from "./screens/kos/TransactionDetailScreen";
+import TransactionSuccessScreen from "./screens/kos/TransactionSuccessScreen";
+import OwnerWebViewScreen from "./screens/auth/OwnerWebViewScreen";
+import * as Linking from "expo-linking";
+
+const linking = {
+  prefixes: [
+    Linking.createURL("/"),
+    "app-kos://",
+    "https://app-kos.com",
+    "https://*.app-kos.com",
+  ],
+  config: {
+    screens: {
+      TransactionSuccess: "payment/finish",
+    },
+  },
+};
 
 const LightColors = {
   radius: 10,
@@ -141,7 +162,6 @@ function AppTabs() {
 function RootNavigator() {
   const token = useAuthStore((state) => state.token);
   const hasProfile = useAuthStore((state) => state.hasProfile);
-  const setHasProfile = useAuthStore((state) => state.setHasProfile);
   const isLoading = useAuthStore((state) => state.isLoading);
   const initialize = useAuthStore((state) => state.initialize);
 
@@ -150,7 +170,7 @@ function RootNavigator() {
   }, []);
 
   if (isLoading) {
-    return null;
+    return <SplashScreen />;
   }
 
   return (
@@ -162,13 +182,27 @@ function RootNavigator() {
             component={CompleteProfileScreen}
           />
         ) : (
-          <Stack.Screen name="AppTabs" component={AppTabs} />
+          <>
+            <Stack.Screen name="AppTabs" component={AppTabs} />
+            <Stack.Screen name="DetailKos" component={DetailKosScreen} />
+            <Stack.Screen name="AjukanSewa" component={AjukanSewaScreen} />
+            <Stack.Screen
+              name="TransactionDetail"
+              component={TransactionDetailScreen}
+            />
+            <Stack.Screen name="Payment" component={PaymentScreen} />
+            <Stack.Screen
+              name="TransactionSuccess"
+              component={TransactionSuccessScreen}
+            />
+          </>
         )
       ) : (
         <>
           <Stack.Screen name="welcome" component={WelcomeScreen} />
           <Stack.Screen name="login" component={LoginScreen} />
           <Stack.Screen name="register" component={SignUpScreen} />
+          <Stack.Screen name="OwnerWebView" component={OwnerWebViewScreen} />
         </>
       )}
     </Stack.Navigator>
@@ -181,7 +215,7 @@ export default function App() {
 
   return (
     <PaperProvider theme={theme}>
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <RootNavigator />
       </NavigationContainer>
     </PaperProvider>

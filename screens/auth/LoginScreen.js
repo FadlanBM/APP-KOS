@@ -13,14 +13,50 @@ import { Formik } from "formik";
 import { z } from "zod";
 import { useAuthStore } from "../../store/authStore";
 import { Alert } from "react-native";
-import api from "../../utils/api";
+import { createHttpHelperFunctions } from "../../store/httpHelperFunctions";
+import { StatusBar } from "expo-status-bar";
+
+const { POST } = createHttpHelperFunctions();
 
 export default function LoginScreen({ navigation }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const setToken = useAuthStore((s) => s.setToken);
   const setProfile = useAuthStore((s) => s.setProfile);
-  const setHasProfile = useAuthStore((s) => s.setHasProfile);
+  const checkProfile = useAuthStore((s) => s.checkProfile);
+
+  const onSubmit = async (values, { setSubmitting }) => {
+    try {
+      const { data } = await POST({
+        url: "/auth/login",
+        body: {
+          email: values.email,
+          password: values.password,
+        },
+        showToast: false,
+        handleErrorStatus: false,
+      });
+
+      const token = data.data.access_token;
+      const userProfile = data.data.user;
+
+      if (token) {
+        await setToken(token);
+        if (userProfile) {
+          await setProfile(userProfile);
+        }
+        await checkProfile(token);
+      } else {
+        Alert.alert("Login Gagal", "Token tidak ditemukan dalam response");
+      }
+    } catch (error) {
+      console.error("Login Error:", error);
+      const errorMessage = error.message || "Email atau password salah";
+      Alert.alert("Login Gagal", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const schema = z.object({
     email: z.string().min(1, "Email wajib diisi").email("Email tidak valid"),
@@ -40,6 +76,11 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
       {/* Back Arrow */}
       <TouchableOpacity
         style={styles.backButton}
@@ -51,58 +92,7 @@ export default function LoginScreen({ navigation }) {
       <Formik
         initialValues={{ email: "", password: "" }}
         validate={validate}
-        onSubmit={async (values, { setSubmitting }) => {
-          try {
-            const { data } = await api.post("/auth/login", {
-              email: values.email,
-              password: values.password,
-            });
-
-            const token = data.data.access_token;
-            const userProfile = data.data.user;
-
-            if (token) {
-              await setToken(token);
-              if (userProfile) {
-                await setProfile(userProfile);
-              }
-
-              // Pengecekan profil setelah login sukses dengan menyertakan token
-              try {
-                await api.get("/profile", {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                });
-                await setHasProfile(true);
-              } catch (profileError) {
-                if (
-                  profileError.response?.status === 404 ||
-                  profileError.response?.data?.error === "Profil belum dibuat"
-                ) {
-                  await setHasProfile(false);
-                } else {
-                  await setHasProfile(true);
-                }
-              }
-            } else {
-              Alert.alert(
-                "Login Gagal",
-                "Token tidak ditemukan dalam response"
-              );
-            }
-          } catch (error) {
-            console.error(
-              "Login Error:",
-              error.response?.data?.error || error.message
-            );
-            const errorMessage =
-              error.response?.data?.error || "Email atau password salah";
-            Alert.alert("Login Gagal", errorMessage);
-          } finally {
-            setSubmitting(false);
-          }
-        }}
+        onSubmit={onSubmit}
       >
         {({
           handleChange,
@@ -218,7 +208,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   backButton: {
-    marginTop: 12,
+    marginTop: 24,
     marginBottom: 20,
     width: 24,
   },

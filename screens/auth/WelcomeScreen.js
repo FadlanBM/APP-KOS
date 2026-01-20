@@ -1,3 +1,4 @@
+import { StatusBar } from "expo-status-bar";
 import React, { useState, useRef } from "react";
 import {
   View,
@@ -17,21 +18,21 @@ const slides = [
     title: "Welcome",
     description:
       "Temukan kos impianmu dengan mudah dan cepat. Tersedia berbagai pilihan kos dengan fasilitas lengkap.",
-    image: "https://i.ibb.co/Fz4VpjX/man-in-phone.png",
+    image: require("../../assets/image/welcome.png"),
   },
   {
     id: "2",
     title: "Lokasi Strategis",
     description:
       "Cari kos di dekat kampus atau tempat kerjamu. Hemat waktu perjalanan dan biaya transportasi.",
-    image: "https://i.ibb.co/Fz4VpjX/man-in-phone.png", // Ganti dengan gambar lain jika ada
+    image: require("../../assets/image/welcome2.png"),
   },
   {
     id: "3",
     title: "Harga Terjangkau",
     description:
       "Bandingkan harga dan fasilitas kos untuk mendapatkan penawaran terbaik sesuai budgetmu.",
-    image: "https://i.ibb.co/Fz4VpjX/man-in-phone.png", // Ganti dengan gambar lain jika ada
+    image: require("../../assets/image/wel3.png"),
   },
 ];
 
@@ -50,11 +51,7 @@ export default function WelcomeScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <View style={styles.slide}>
       <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: item.image }}
-          style={styles.image}
-          resizeMode="contain"
-        />
+        <Image source={item.image} style={styles.image} resizeMode="contain" />
       </View>
 
       <Text style={styles.title}>{item.title}</Text>
@@ -64,6 +61,11 @@ export default function WelcomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <View style={styles.content}>
         <FlatList
           ref={flatListRef}
@@ -99,6 +101,13 @@ export default function WelcomeScreen({ navigation }) {
           onPress={() => navigation.navigate("login")}
         >
           <Text style={styles.loginButtonText}>Log In</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.ownerButton}
+          onPress={() => navigation.navigate("OwnerWebView")}
+        >
+          <Text style={styles.ownerButtonText}>Login sebagai Pemilik</Text>
         </TouchableOpacity>
 
         <Text style={styles.signUpText}>
@@ -187,6 +196,20 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  ownerButton: {
+    backgroundColor: "#fff",
+    paddingVertical: 15,
+    borderRadius: 30,
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#000",
+  },
+  ownerButtonText: {
+    color: "#000",
     fontSize: 16,
     fontWeight: "bold",
   },

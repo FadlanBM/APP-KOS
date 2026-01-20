@@ -11,8 +11,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Formik } from "formik";
 import * as z from "zod";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import api from "../../utils/api";
 import { useAuthStore } from "../../store/authStore";
+import { createHttpHelperFunctions } from "../../store/httpHelperFunctions";
+import { StatusBar } from "expo-status-bar";
+
+const { POST } = createHttpHelperFunctions();
 
 const profileSchema = z.object({
   full_name: z.string().min(1, "Nama lengkap wajib diisi"),
@@ -47,24 +50,20 @@ export default function CompleteProfileScreen() {
 
   const handleSubmitProfile = async (values, { setSubmitting }) => {
     try {
-      const response = await api.post("/profile", values, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const { data } = await POST({
+        url: "/profile",
+        body: values,
+        token,
+        showToast: false,
+        handleErrorStatus: false,
       });
-      if (response.data.success) {
+      if (data.success) {
         Alert.alert("Berhasil", "Profil Anda telah dibuat.");
         await setHasProfile(true);
       }
     } catch (error) {
-      console.error(
-        "Create Profile Error:",
-        error.response?.data || error.message
-      );
-      Alert.alert(
-        "Error",
-        error.response?.data?.error || "Gagal membuat profil"
-      );
+      console.error("Create Profile Error:", error);
+      Alert.alert("Error", error.message || "Gagal membuat profil");
     } finally {
       setSubmitting(false);
     }
@@ -74,6 +73,11 @@ export default function CompleteProfileScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text variant="headlineMedium" style={styles.title}>
           Lengkapi Profil

@@ -12,8 +12,11 @@ import { Ionicons, FontAwesome, AntDesign, Entypo } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Formik } from "formik";
 import { z } from "zod";
-import api from "../../utils/api";
 import { Alert } from "react-native";
+import { createHttpHelperFunctions } from "../../store/httpHelperFunctions";
+import { StatusBar } from "expo-status-bar";
+
+const { POST } = createHttpHelperFunctions();
 
 export default function SignUpScreen({ navigation }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -44,6 +47,11 @@ export default function SignUpScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <TouchableOpacity
           style={styles.backButton}
@@ -62,17 +70,18 @@ export default function SignUpScreen({ navigation }) {
           validate={validate}
           onSubmit={async (values, { setSubmitting }) => {
             try {
-              const response = await api.post("/auth/register", values);
+              await POST({
+                url: "/auth/register",
+                body: values,
+                showToast: false,
+                handleErrorStatus: false,
+              });
               Alert.alert("Success", "Registrasi berhasil! Silakan login.");
               navigation.navigate("login");
             } catch (error) {
-              console.error(
-                "Register Error:",
-                error.response?.data || error.message
-              );
+              console.error("Register Error:", error);
               const errorMessage =
-                error.response?.data?.message ||
-                "Terjadi kesalahan saat registrasi";
+                error.message || "Terjadi kesalahan saat registrasi";
               Alert.alert("Error", errorMessage);
             } finally {
               setSubmitting(false);
@@ -204,7 +213,7 @@ export default function SignUpScreen({ navigation }) {
 
               <View style={styles.loginContainer}>
                 <Text style={styles.loginText}>Already have an account? </Text>
-                <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+                <TouchableOpacity onPress={() => navigation.navigate("login")}>
                   <Text style={styles.loginLink}>Log In here</Text>
                 </TouchableOpacity>
               </View>

@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
+import { createHttpHelperFunctions } from "./httpHelperFunctions";
 
 const TOKEN_KEY = "auth_token";
+const { GET, POST } = createHttpHelperFunctions();
 
 export const useAuthStore = create((set, get) => ({
   token: null,
   user: null,
-  hasProfile: true, // Default true agar tidak redirect saat loading
+  hasProfile: true,
   isLoading: true,
   initialize: async () => {
     try {
@@ -18,10 +20,40 @@ export const useAuthStore = create((set, get) => ({
         token: storedToken,
         user: storedUser ? JSON.parse(storedUser) : null,
         hasProfile: storedHasProfile === "false" ? false : true,
-        isLoading: false,
       });
+
+      // Jika ada token, cek profil terbaru ke API
+      if (storedToken) {
+        await get().checkProfile(storedToken);
+      }
+
+      set({ isLoading: false });
     } catch (error) {
       set({ token: null, user: null, hasProfile: true, isLoading: false });
+    }
+  },
+  checkProfile: async (token) => {
+    try {
+      await GET({
+        url: "/profile",
+        token: token || get().token,
+        showToast: false,
+        handleErrorStatus: false,
+      });
+      await get().setHasProfile(true);
+    } catch (error) {
+      if (error.status === 401) {
+        // Jika unauthorized, langsung logout
+        await get().logout();
+      } else if (
+        error.status === 404 ||
+        error.message?.includes("Profil belum dibuat")
+      ) {
+        await get().setHasProfile(false);
+      } else {
+        // Jika error lain (misal network), kita asumsikan punya profil dulu agar tidak mental ke screen complete profile
+        await get().setHasProfile(true);
+      }
     }
   },
   setToken: async (token) => {
